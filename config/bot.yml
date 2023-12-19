@@ -1,0 +1,11 @@
+production:
+  bot_name: 'bot'
+  api_key: 'key'
+
+staging:
+  bot_name: 'stage_bot'
+  api_key: 'stage_key'
+
+test:
+  bot_name: 'test_bot'
+  api_key: 'test_key'
