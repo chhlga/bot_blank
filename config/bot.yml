@@ -1,6 +1,6 @@
 production:
-  bot_name: 'bot'
-  api_key: 'key'
+  bot_name: 'substance_planner_bot'
+  api_key: '6750365613:AAG7Ojf9O0xO63zbeZ7OWCc_ODn_2sq84-k'
 
 staging:
   bot_name: 'stage_bot'
