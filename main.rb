@@ -65,7 +65,6 @@ class Main
       sub2 = Substance.where("'#{key[1]}' = ANY (names)").first
       interaction = key[2..-1]&.join(' ')
 
-      binding.pry
 =begin
       SubstanceInteraction.where(source: 'MedGPT').each do |interaction|
         translate = client_chad.chat(
