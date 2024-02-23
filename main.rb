@@ -15,6 +15,7 @@ Dir[File.join(__dir__, 'models', '*.rb')].each { |file| require file }
 class Main
   TOKEN = $bot_config['api_key']
   BOT_NAME = $bot_config['bot_name']
+  @interactions_ids = []
 
   class << self
     def start
@@ -22,42 +23,61 @@ class Main
         bot.listen do |message|
           process_user(message, bot)
           process_mesage(message, bot)
-        rescue => e
-          puts e
+ #       rescue => e
+ #         puts e
         end
       end
     end
 
     def process_user(message, bot)
+      return if message.class != Telegram::Bot::Types::Message
+
       user = User.find_or_create_by(chat_id: message.chat.id, uuid: message.from.id)
       user.update(requests_count: user.requests_count + 1)
     end
 
     def process_mesage(message, bot)
-      return unless message.class == Telegram::Bot::Types::Message
+      return unless message.class == Telegram::Bot::Types::Message || message.class == Telegram::Bot::Types::CallbackQuery
 
-      command = message.text.split(' ').first
-
-      case command
-      when '/start'
-        bot.api.send_message(chat_id: message.chat.id, text: "Я бот, который поможет тебе узнать о взаимодействии психоактивных сустанций. Для этого введи /mix названия двух препаратов через пробел. Например: /mix кокаин алкоголь. Для того, чтобы узнать список всех препаратов, введи /list. Чтобы узнать информацию о препарате, введи /info название препарата.")
-      when '/help'
-        bot.api.send_message(chat_id: message.chat.id, text: "Я бот, который поможет тебе узнать о взаимодействии психоактивных сустанций. Для этого введи /mix названия двух препаратов через пробел. Например: /mix кокаин алкоголь. Для того, чтобы узнать список всех препаратов, введи /list. Чтобы узнать информацию о препарате, введи /info название препарата.")
-      when '/list'
-        list = Substance.all.map {|e| "--- #{e.names.join(', ')}"}.flatten.uniq.sort.join("\n")
-        bot.api.send_message(chat_id: message.chat.id, text: list)
-      when '/mix'
-        find_interactions(message, bot)
-      when '/info'
-        info(message, bot)
-      when '/add_mix'
-        add_mix(message, bot)
+      if message.is_a?(Telegram::Bot::Types::CallbackQuery)
+        process_callback(message, bot)
+        @interactions_ids = []
       else
-        bot.api.send_message(chat_id: message.chat.id, text: 'Неизвестная команда')
+        command = message.text.split(' ').first
+
+        case command
+        when '/start'
+          bot.api.send_message(chat_id: message.chat.id, text: "Я бот, который поможет тебе узнать о взаимодействии психоактивных сустанций. Для этого введи /mix названия двух препаратов через пробел. Например: /mix кокаин алкоголь. Для того, чтобы узнать список всех препаратов, введи /list. Чтобы узнать информацию о препарате, введи /info название препарата.")
+        when '/help'
+          bot.api.send_message(chat_id: message.chat.id, text: "Я бот, который поможет тебе узнать о взаимодействии психоактивных сустанций. Для этого введи /mix названия двух препаратов через пробел. Например: /mix кокаин алкоголь. Для того, чтобы узнать список всех препаратов, введи /list. Чтобы узнать информацию о препарате, введи /info название препарата.")
+        when '/list'
+          list = Substance.all.map {|e| "--- #{e.names.join(', ')}"}.flatten.uniq.sort.join("\n")
+          bot.api.send_message(chat_id: message.chat.id, text: list)
+        when '/mix'
+          find_interactions(message, bot)
+        when '/info'
+          info(message, bot)
+        when '/add_mix'
+          add_mix(message, bot)
+        else
+          bot.api.send_message(chat_id: message.chat.id, text: 'Неизвестная команда')
+        end
       end
     end
 
     private
+
+    def process_callback(message, bot)
+      data = JSON.parse(message.data, symbolize_names: true)
+      ids = instance_variable_get("@interactions_#{message.message.chat.id}")
+      case data[:type]
+      when 'like'
+        SubstanceInteraction.where(id: ids).update_all('rating = rating + 1')
+      when 'dislike'
+        SubstanceInteraction.where(id: ids).update_all('rating = rating - 1')
+      end
+      bot.api.send_message(chat_id: message.message.chat.id, text: "Спасибо за ваш отзыв")
+    end
 
     def info(message, bot)
       key = message.text.downcase.gsub('/info ', '').split(' ').sort!
@@ -140,12 +160,26 @@ class Main
 
     def find_interactions(message,bot)
       key = message.text.downcase.gsub('/mix ', '').split(' ').sort!
-      interactions = SubstanceInteraction.find_interaction(Substance.where("'#{key[0]}' = ANY (names)").first, Substance.where("'#{key[1]}' = ANY (names)").first).order(weight: :desc).map(&:sourced_description)
+      sub_1 = Substance.where("'#{key[0]}' = ANY (names)").first
+      sub_2 = Substance.where("'#{key[1]}' = ANY (names)").first
+
+
+      interactions = SubstanceInteraction.find_interaction(sub_1, sub_2).order(weight: :desc)
+      interactions_text = interactions.map(&:sourced_description)
+      interaction_ids = interactions.pluck(:id)
+
       if interactions.empty?
         bot.api.send_message(chat_id: message.chat.id, text: 'Нет взаимодействий')
         return
       else
-        bot.api.send_message(chat_id: message.chat.id, text: interactions.join("\n\n --- \n\n"))
+        instance_variable_set("@interactions_#{message.chat.id}", interaction_ids)
+        keyboard = [
+          Telegram::Bot::Types::InlineKeyboardButton.new(text: '👍', callback_data: {type: 'like'}.to_json),
+          Telegram::Bot::Types::InlineKeyboardButton.new(text: '👎', callback_data: {type: 'dislike'}.to_json)
+        ]
+        markup = Telegram::Bot::Types::InlineKeyboardMarkup.new(inline_keyboard: [keyboard])
+
+        bot.api.send_message(chat_id: message.chat.id, text: interactions_text.join("\n\n --- \n\n"), reply_markup: markup)
       end
     end
   end
