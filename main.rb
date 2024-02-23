@@ -42,6 +42,8 @@ class Main
         bot.api.send_message(chat_id: message.chat.id, text: list)
       when '/mix'
         find_interactions(message, bot)
+      when '/info'
+        info(message, bot)
       when '/add_mix'
         add_mix(message, bot)
       else
@@ -51,6 +53,16 @@ class Main
 
     private
 
+    def info(message, bot)
+      key = message.text.downcase.gsub('/info ', '').split(' ').sort!
+      substance = Substance.where("'#{key[0]}' = ANY (names)").first
+      if substance
+        bot.api.send_message(chat_id: message.chat.id, text: substance.information)
+      else
+        bot.api.send_message(chat_id: message.chat.id, text: 'Препарат не найден')
+      end
+    end
+
     def add_mix(message, bot)
       key = message.text.downcase.gsub('/add_mix ', '').split(' ').sort!
       client_elina = OpenAI::Client.new(
@@ -58,26 +70,22 @@ class Main
         access_token: ''
       )
       client_chad = OpenAI::Client.new(
-        access_token: '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'
+        access_token: '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'
       )
 
-      sub1 = Substance.where("'#{key[0]}' = ANY (names)").first
-      sub2 = Substance.where("'#{key[1]}' = ANY (names)").first
-      interaction = key[2..-1]&.join(' ')
-
 =begin
-      SubstanceInteraction.where(source: 'MedGPT').each do |interaction|
+      SubstanceInteraction.where(source: 'tripsit.me').map do |interaction|
         translate = client_chad.chat(
           parameters: {
             model: "gpt-4-1106-preview",
             messages: [
               { role: 'system', content: "act as a translator" },
-              { role: "user", content: "translate #{interaction.description} from english to russian, if text already in russian do nothing, and just return input. Also, remove any warning about illegality of substances. Keep only pros and cons"}
+              { role: "user", content: "translate #{interaction.description} from english to russian"}
             ]
           }
         )
-        puts translate['choices'].first['message']['content']
-        interaction.update(description: translate['choices'].first['message']['content'], weight: 1)
+       puts translate['choices'].first['message']['content']
+        interaction.update(description: translate['choices'].first['message']['content'], source: 'tripsit.me(translated)')
       end
 
       subs = SubstanceInteraction.distinct.pluck(:substance1_id, :substance2_id).map do |e|
