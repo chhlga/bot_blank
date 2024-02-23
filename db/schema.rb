@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2024_01_19_205408) do
+ActiveRecord::Schema[7.1].define(version: 2024_02_23_101846) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -37,6 +37,12 @@ ActiveRecord::Schema[7.1].define(version: 2024_01_19_205408) do
     t.index ["interaction_id"], name: "index_substances_interactions_on_interaction_id"
     t.index ["substance1_id"], name: "index_substances_interactions_on_substance1_id"
     t.index ["substance2_id"], name: "index_substances_interactions_on_substance2_id"
+  end
+
+  create_table "users", force: :cascade do |t|
+    t.string "uuid"
+    t.bigint "chat_id"
+    t.bigint "requests_count", default: 0
   end
 
 end

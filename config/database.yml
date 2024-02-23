@@ -8,6 +8,16 @@ production:
   host: '149.100.159.176'
   port: '5432'
 
+stage:
+  host: 'db'
+  adapter: 'postgresql'
+  encoding: utf-8
+  database: 'bot_narko_prod'
+  password: '6xpRHyjoO7yzSpv6gVOu'
+  user: 'postgres'
+  host: '149.100.159.176'
+  port: '5432'
+
 test:
   host: 'db'
   adapter: 'postgresql'

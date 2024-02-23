@@ -20,11 +20,17 @@ class Main
     def start
       Telegram::Bot::Client.run(TOKEN) do |bot|
         bot.listen do |message|
+          process_user(message, bot)
           process_mesage(message, bot)
         rescue => e
           puts e
         end
       end
+    end
+
+    def process_user(message, bot)
+      user = User.find_or_create_by(chat_id: message.chat.id, uuid: message.from.id)
+      user.update(requests_count: user.requests_count + 1)
     end
 
     def process_mesage(message, bot)
@@ -74,7 +80,7 @@ class Main
       )
 
 =begin
-      SubstanceInteraction.where(source: 'tripsit.me').map do |interaction|
+      SubstanceInteraction.where(source: 'MedGPT').map do |interaction|
         translate = client_chad.chat(
           parameters: {
             model: "gpt-4-1106-preview",
@@ -85,7 +91,7 @@ class Main
           }
         )
        puts translate['choices'].first['message']['content']
-        interaction.update(description: translate['choices'].first['message']['content'], source: 'tripsit.me(translated)')
+        interaction.update(description: translate['choices'].first['message']['content'], source: 'MedGPT (translated)')
       end
 
       subs = SubstanceInteraction.distinct.pluck(:substance1_id, :substance2_id).map do |e|
